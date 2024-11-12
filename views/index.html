@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hotel Menu Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        form {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input {
+            display: block;
+            margin: 10px 0;
+            padding: 8px;
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #menuList {
+            list-style: none;
+            padding: 0;
+        }
+        #menuList li {
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .menu-item-image {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background-color: #fadbd8;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+        .success {
+            color: #27ae60;
+            padding: 10px;
+            background-color: #d4efdf;
+            border-radius: 4px;
+            margin: 10px 0;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hotel Menu Management</h1>
+    <div id="errorMessage" class="error"></div>
+    <div id="successMessage" class="success"></div>
+
+    <!-- Form to Add a New Menu Item -->
+    <h2>Add Menu Item</h2>
+    <form id="addMenuForm">
+        <input type="text" id="title" placeholder="Dish Name" required>
+        <input type="text" id="content" placeholder="Description" required>
+        <input type="number" id="price" placeholder="Price" required min="0" step="0.01">
+        <input type="text" id="image" placeholder="Image URL" required>
+        <button type="submit">Add Menu Item</button>
+    </form>
+
+    <!-- Menu Items List -->
+    <h2>Menu Items</h2>
+    <div class="button-group">
+        <button id="fetchMenu">View All Menu Items</button>
+        <button id="editModeBtn">Toggle Edit Mode</button>
+    </div>
+    <ul id="menuList"></ul>
+
+    <!-- Form to Update a Menu Item -->
+    <h2>Update Menu Item</h2>
+    <form id="updateMenuForm">
+        <input type="hidden" id="updateId">
+        <input type="text" id="updateTitle" placeholder="Dish Name" required>
+        <input type="text" id="updateContent" placeholder="Description" required>
+        <input type="number" id="updatePrice" placeholder="Price" required min="0" step="0.01">
+        <input type="text" id="updateImage" placeholder="Image URL" required>
+        <button type="submit">Update Menu Item</button>
+    </form>
+
+    <script>
+        const apiUrl = 'http://localhost:4000/api/menu';
+        let editMode = false;
+
+        function showMessage(message, isError = false) {
+            const errorDiv = document.getElementById('errorMessage');
+            const successDiv = document.getElementById('successMessage');
+            
+            if (isError) {
+                errorDiv.textContent = message;
+                errorDiv.style.display = 'block';
+                successDiv.style.display = 'none';
+                setTimeout(() => errorDiv.style.display = 'none', 3000);
+            } else {
+                successDiv.textContent = message;
+                successDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+                setTimeout(() => successDiv.style.display = 'none', 3000);
+            }
+        }
+
+        // Add a new menu item
+        document.getElementById('addMenuForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const formData = {
+                    title: document.getElementById('title').value.trim(),
+                    content: document.getElementById('content').value.trim(),
+                    price: parseFloat(document.getElementById('price').value),
+                    image: document.getElementById('image').value.trim()
+                };
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Failed to add menu item');
+                
+                showMessage('Menu item added successfully');
+                e.target.reset();
+                fetchMenuItems();
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        });
+
+        // Fetch all menu items
+        async function fetchMenuItems() {
+            try {
+                const response = await fetch(apiUrl);
+                if (!response.ok) throw new Error('Failed to fetch menu items');
+                
+                const menu = await response.json();
+                const menuList = document.getElementById('menuList');
+                menuList.innerHTML = '';
+                
+                menu.forEach(item => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <div class="menu-item-content">
+                            <img src="${item.image}" alt="${item.title}" class="menu-item-image">
+                            <div>
+                                <h3>${item.title}</h3>
+                                <p>${item.content}</p>
+                                <strong>$${item.price}</strong>
+                            </div>
+                        </div>
+                        <div class="menu-item-actions">
+                            <button class="edit-btn" style="display: ${editMode ? 'inline' : 'none'}">Edit</button>
+                            <button class="delete-btn" style="display: ${editMode ? 'inline' : 'none'}">Delete</button>
+                        </div>
+                    `;
+
+                    const editBtn = li.querySelector('.edit-btn');
+                    const deleteBtn = li.querySelector('.delete-btn');
+
+                    editBtn.addEventListener('click', () => {
+                        document.getElementById('updateId').value = item._id;
+                        document.getElementById('updateTitle').value = item.title;
+                        document.getElementById('updateContent').value = item.content;
+                        document.getElementById('updatePrice').value = item.price;
+                        document.getElementById('updateImage').value = item.image;
+                        document.getElementById('updateMenuForm').scrollIntoView({ behavior: 'smooth' });
+                    });
+
+                    deleteBtn.addEventListener('click', async () => {
+                        if (confirm('Are you sure you want to delete this item?')) {
+                            await deleteMenuItem(item._id);
+                        }
+                    });
+
+                    menuList.appendChild(li);
+                });
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        }
+
+        document.getElementById('fetchMenu').addEventListener('click', fetchMenuItems);
+
+        // Toggle edit mode
+        document.getElementById('editModeBtn').addEventListener('click', () => {
+            editMode = !editMode;
+            document.querySelectorAll('.edit-btn, .delete-btn').forEach(btn => {
+                btn.style.display = editMode ? 'inline' : 'none';
+            });
+        });
+
+        // Update a menu item
+        document.getElementById('updateMenuForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const id = document.getElementById('updateId').value;
+                const formData = {
+                    title: document.getElementById('updateTitle').value.trim(),
+                    content: document.getElementById('updateContent').value.trim(),
+                    price: parseFloat(document.getElementById('updatePrice').value),
+                    image: document.getElementById('updateImage').value.trim()
+                };
+
+                const response = await fetch(`${apiUrl}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Failed to update menu item');
+
+                showMessage('Menu item updated successfully');
+                e.target.reset();
+                fetchMenuItems();
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        });
+
+        // Delete a menu item
+        async function deleteMenuItem(id) {
+            try {
+                const response = await fetch(`${apiUrl}/${id}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.message || 'Failed to delete menu item');
+
+                showMessage('Menu item deleted successfully');
+                fetchMenuItems();
+            } catch (error) {
+                showMessage(error.message, true);
+            }
+        }
+
+        // Initial load
+        fetchMenuItems();
+    </script>
+</body>
+</html>
